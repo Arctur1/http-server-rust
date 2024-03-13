@@ -78,23 +78,39 @@ fn handle_client(mut stream: TcpStream) {
         let query = request.path.strip_prefix("/files/").expect("trimmed");
         let file_path = format!("{}/{}", dir, query);
 
-        match File::open(&file_path) {
-            Ok(mut file) => {
-                let mut contents = String::new();
-                // Read the contents of the file into a string
-                match file.read_to_string(&mut contents) {
-                    Ok(_) => {},
-                    Err(e) => panic!("Error reading file: {}", e),
-                }
-                let content_length = format!("Content-Length: {}\r\n\r\n", contents.len());
-                stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n", content_length.as_str(), contents.as_str()].concat().as_bytes()).expect("writing to stream");
-            }
-            Err(_) => {
-                stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").expect("writing to stream");
-                return
-            },
-        }
+        if let HttpMethod::Post = request.method {
+            match File::create(file_path) {
+                Ok(mut file) => {
+                    // Write data to the file
+                    match file.write_all(request.body.as_bytes()) {
+                        Ok(_) => println!("Data written to file successfully."),
+                        Err(e) => panic!("Error writing to file: {}", e),
+                    }
 
+                    stream.write_all(b"HTTP/1.1 201 OK\r\nContent-Type: application/octet-stream\r\n\r\n").expect("writing to stream");
+                    return
+                }
+                Err(e) => println!("Error creating file: {}", e),
+            }
+
+        } else {
+            match File::open(&file_path) {
+                Ok(mut file) => {
+                    let mut contents = String::new();
+                    // Read the contents of the file into a string
+                    match file.read_to_string(&mut contents) {
+                        Ok(_) => {},
+                        Err(e) => panic!("Error reading file: {}", e),
+                    }
+                    let content_length = format!("Content-Length: {}\r\n\r\n", contents.len());
+                    stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n", content_length.as_str(), contents.as_str()].concat().as_bytes()).expect("writing to stream");
+                }
+                Err(_) => {
+                    stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").expect("writing to stream");
+                    return
+                },
+            }    
+        }
 
     }
     if request.path.starts_with("/") {
@@ -110,7 +126,7 @@ fn handle_client(mut stream: TcpStream) {
 }
 
 fn parse_http(data: &str) -> HttpRequest {
-    let mut request = HttpRequest{path: String::new(), method: HttpMethod::Unimplemented, headers: HashMap::new()};
+    let mut request = HttpRequest{path: String::new(), method: HttpMethod::Unimplemented, headers: HashMap::new(), body: String::new()};
     let mut lines = data.lines();
 
     let request_line = lines.next();
@@ -125,6 +141,7 @@ fn parse_http(data: &str) -> HttpRequest {
                 Some(method) => {
                     match method {
                         "GET" => { request.method = HttpMethod::Get }
+                        "POST" =>{ request.method = HttpMethod::Post }
                         _ =>{ }
                     }
                 }
@@ -144,12 +161,13 @@ fn parse_http(data: &str) -> HttpRequest {
     }
 
     let header_lines: Vec<&str> = lines.collect();
-    for header_line in header_lines {
+    for header_line in header_lines.iter() {
         if let Some((name, value)) = header_line.split_once(": ") {
             request.headers.insert(name.to_string().to_lowercase(), value.to_string());
         }
     }
 
+    request.body = header_lines.last().expect("body").trim_matches(char::from(0)).to_string();
 
     return request
 }
@@ -158,9 +176,11 @@ struct HttpRequest {
     method: HttpMethod,
     path: String,
     headers: HashMap<String, String>,
+    body: String,
 }
 
 enum HttpMethod {
     Unimplemented,
     Get,
+    Post,
 }

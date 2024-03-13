@@ -1,19 +1,29 @@
 use std::{collections::HashMap, io::{Read, Write}, net::{TcpListener, TcpStream}};
-
+use std::thread;
 
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
-    
+    let mut children = Vec::new();
+
     for stream in listener.incoming() {
         match stream {
             Ok(stream) => {
-                handle_client(stream);
+                let child = thread::spawn(move || {
+                    handle_client(stream);
+                    println!("thread finished");
+                });
+                children.push(child);
             }
             Err(e) => {
                 println!("error: {}", e);
             }
         }
     }
+
+    for child in children {
+        child.join().expect("oops! the child thread panicked");
+    }
+
 }
 
 fn handle_client(mut stream: TcpStream) {

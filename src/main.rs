@@ -94,7 +94,7 @@ fn parse_http(data: &str) -> HttpRequest {
     let header_lines: Vec<&str> = lines.collect();
     for header_line in header_lines {
         if let Some((name, value)) = header_line.split_once(": ") {
-            request.headers.insert(name.to_string().to_lowercase(), value.to_string().to_lowercase());
+            request.headers.insert(name.to_string().to_lowercase(), value.to_string());
         }
     }
 

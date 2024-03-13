@@ -34,8 +34,16 @@ fn handle_client(mut stream: TcpStream) {
 
     if request.path == "/" {
         stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").expect("writing to stream");
-
+        return
     }
+
+    if request.path.starts_with("/echo/") {
+        let query = request.path.strip_prefix("/echo/").expect("trimmed");
+        let content_length = format!("Content-Length: {}\r\n\r\n", query.len());
+        stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n", content_length.as_str(), query].concat().as_bytes()).expect("writing to stream");
+        return
+    }
+
     stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").expect("writing to stream");
 }
 

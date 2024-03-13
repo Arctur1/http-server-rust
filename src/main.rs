@@ -1,7 +1,11 @@
 use std::{collections::HashMap, io::{Read, Write}, net::{TcpListener, TcpStream}};
 use std::thread;
+use std::env;
+use std::fs::File;
 
 fn main() {
+
+
     let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
     let mut children = Vec::new();
 
@@ -54,6 +58,45 @@ fn handle_client(mut stream: TcpStream) {
         return
     }
 
+    if request.path.starts_with("/files/") {
+        let args: Vec<String> = env::args().collect();
+        let mut directory = None;
+    
+        for i in 1..args.len() {
+            if args[i] == "--directory" {
+                // If the current argument is --directory or -d, try to get the next argument as the directory
+                if let Some(dir) = args.get(i + 1) {
+                    directory = Some(dir.clone());
+                } else {
+                    println!("Error: Missing directory argument.");
+                    return;
+                }
+            }
+        }
+        let dir = directory.expect("directory arg");
+
+        let query = request.path.strip_prefix("/files/").expect("trimmed");
+        let file_path = format!("{}/{}", dir, query);
+
+        match File::open(&file_path) {
+            Ok(mut file) => {
+                let mut contents = String::new();
+                // Read the contents of the file into a string
+                match file.read_to_string(&mut contents) {
+                    Ok(_) => {},
+                    Err(e) => panic!("Error reading file: {}", e),
+                }
+                let content_length = format!("Content-Length: {}\r\n\r\n", contents.len());
+                stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n", content_length.as_str(), contents.as_str()].concat().as_bytes()).expect("writing to stream");
+            }
+            Err(_) => {
+                stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").expect("writing to stream");
+                return
+            },
+        }
+
+
+    }
     if request.path.starts_with("/") {
         let query = request.path.strip_prefix("/").expect("trimmed");
 
@@ -61,9 +104,8 @@ fn handle_client(mut stream: TcpStream) {
             let content_length = format!("Content-Length: {}\r\n\r\n", response.len());
             stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n", content_length.as_str(), response].concat().as_bytes()).expect("writing to stream");
         }
-
-
     }
+
     stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").expect("writing to stream");
 }
 

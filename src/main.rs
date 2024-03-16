@@ -1,38 +1,25 @@
-use std::{collections::HashMap, io::{Read, Write}, net::{TcpListener, TcpStream}};
-use std::thread;
+use std::{collections::HashMap, io::{Read, Write}};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
+use tokio::net::TcpStream;
 use std::env;
 use std::fs::File;
 
-fn main() {
+#[tokio::main]
+async fn main() {
+    let listener = TcpListener::bind("127.0.0.1:4221").await.unwrap();
 
-
-    let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
-    let mut children = Vec::new();
-
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                let child = thread::spawn(move || {
-                    handle_client(stream);
-                    println!("thread finished");
-                });
-                children.push(child);
-            }
-            Err(e) => {
-                println!("error: {}", e);
-            }
-        }
-    }
-
-    for child in children {
-        child.join().expect("oops! the child thread panicked");
+    while let Ok((stream, _peer)) = listener.accept().await {
+        tokio::spawn(async move {
+            handle_client(stream).await;
+        });
     }
 
 }
 
-fn handle_client(mut stream: TcpStream) {
+async fn handle_client(mut stream: TcpStream) {
     let mut buffer = [0; 1024];
-    let result = stream.read(&mut buffer);
+    let result = stream.read(&mut buffer).await;
     match result {
         Ok(read) => {
             println!("read {} bytes", read);
@@ -47,14 +34,14 @@ fn handle_client(mut stream: TcpStream) {
     let request = parse_http(received);
 
     if request.path == "/" {
-        stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").expect("writing to stream");
+        stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n").await.expect("writing to stream");
         return
     }
 
     if request.path.starts_with("/echo/") {
         let query = request.path.strip_prefix("/echo/").expect("trimmed");
         let content_length = format!("Content-Length: {}\r\n\r\n", query.len());
-        stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n", content_length.as_str(), query].concat().as_bytes()).expect("writing to stream");
+        stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n", content_length.as_str(), query].concat().as_bytes()).await.expect("writing to stream");
         return
     }
 
@@ -87,7 +74,7 @@ fn handle_client(mut stream: TcpStream) {
                         Err(e) => panic!("Error writing to file: {}", e),
                     }
 
-                    stream.write_all(b"HTTP/1.1 201 OK\r\nContent-Type: application/octet-stream\r\n\r\n").expect("writing to stream");
+                    stream.write_all(b"HTTP/1.1 201 OK\r\nContent-Type: application/octet-stream\r\n\r\n").await.expect("writing to stream");
                     return
                 }
                 Err(e) => println!("Error creating file: {}", e),
@@ -103,10 +90,10 @@ fn handle_client(mut stream: TcpStream) {
                         Err(e) => panic!("Error reading file: {}", e),
                     }
                     let content_length = format!("Content-Length: {}\r\n\r\n", contents.len());
-                    stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n", content_length.as_str(), contents.as_str()].concat().as_bytes()).expect("writing to stream");
+                    stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n", content_length.as_str(), contents.as_str()].concat().as_bytes()).await.expect("writing to stream");
                 }
                 Err(_) => {
-                    stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").expect("writing to stream");
+                    stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").await.expect("writing to stream");
                     return
                 },
             }    
@@ -118,11 +105,11 @@ fn handle_client(mut stream: TcpStream) {
 
         if let Some(response) = request.headers.get(&query.to_string().to_lowercase()) {
             let content_length = format!("Content-Length: {}\r\n\r\n", response.len());
-            stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n", content_length.as_str(), response].concat().as_bytes()).expect("writing to stream");
+            stream.write_all(["HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n", content_length.as_str(), response].concat().as_bytes()).await.expect("writing to stream");
         }
     }
 
-    stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").expect("writing to stream");
+    stream.write_all(b"HTTP/1.1 404 Not Found\r\n\r\n").await.expect("writing to stream");
 }
 
 fn parse_http(data: &str) -> HttpRequest {

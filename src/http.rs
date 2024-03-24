@@ -6,7 +6,10 @@ use bytes::Bytes;
 
 pub enum HttpStatusCode {
     Success,
+    Created,
     NotFound,
+    ServerError,
+    BadRequest
 }
 
 pub struct HttpResponse {
@@ -24,7 +27,10 @@ impl HttpStatusCode {
     pub fn header(self) -> Bytes {
         match self {
             Self::Success => { "HTTP/1.1 200 OK".into() }
+            Self::Created => { "HTTP/1.1 201 OK".into() }
             Self::NotFound =>  { "HTTP/1.1 404 Not Found".into() }
+            Self::ServerError => { "HTTP/1.1 500 Server Error".into() }
+            Self::BadRequest => { "HTTP/1.1 400 Bad Request".into() }
         }
     }
 }

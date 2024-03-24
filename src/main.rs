@@ -1,20 +1,85 @@
 use std::{collections::HashMap, io::{Read, Write}};
+use config::Config;
+use http::{HttpRequest, HttpResponse, HttpStatusCode};
+use nom::{error, Err};
+use router::Router;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 use std::env;
 use std::fs::File;
+use anyhow::{anyhow, Result};
+use bytes::{BufMut, Bytes, BytesMut};
+
+use crate::http::HttpMethod;
+
+pub mod router;
+pub mod matcher;
+pub mod http;
+pub mod config;
 
 #[tokio::main]
-async fn main() {
-    let listener = TcpListener::bind("127.0.0.1:4221").await.unwrap();
+async fn main() -> Result<()>{
+    let config = Config::parse_config();
+    let mut router = Router::new();
+    router = router.add("*", handle_request);
 
-    while let Ok((stream, _peer)) = listener.accept().await {
+    let listener = TcpListener::bind("127.0.0.1:4221").await?;
+
+    loop {
+        let (stream, _peer) = listener.accept().await?;
+        let config = config.clone();
+        let router = router.clone();
+
         tokio::spawn(async move {
-            handle_client(stream).await;
+            handle_client_v2(stream, router, config).await;
+            // handle_client(stream).await;
         });
     }
+}
 
+async fn handle_client_v2(mut stream: TcpStream, router: Router, config: Config) {
+    let mut buffer = [0; 1024];
+    let result = stream.read(&mut buffer).await;
+    match result {
+        Ok(read) => {
+            println!("read {} bytes", read);
+        }
+        Err(err) => {
+            println!("error reading bytes: {}", err);
+            return
+        }
+    }
+
+    let received = std::str::from_utf8(&buffer).expect("valid utf8");
+
+    let mut request = parse_http(received);
+
+    let mut response = HttpResponse{code: HttpStatusCode::NotFound, body: Bytes::new(), headers: vec![]};
+    if let Some((matched, handler)) = router.match_url(&request.path) {
+        request.params = matched.params;
+        response = handler(request, &config);
+    } 
+
+    let todo = stream.write(&construct_response(response)).await;
+}
+
+fn construct_response(res: HttpResponse) -> Bytes {
+    let mut buffer = BytesMut::new();
+    buffer.put(res.code.header());
+    buffer.put(&b"\r\n"[..]);
+
+    for header in res.headers {
+        buffer.put(header.name);
+        buffer.put(&b": "[..]);
+        buffer.put(header.value);
+        buffer.put(&b"\r\n"[..]);
+    }
+
+    buffer.put(&b"\r\n"[..]);
+    buffer.put(res.body);
+
+    buffer.into()
 }
 
 async fn handle_client(mut stream: TcpStream) {
@@ -65,7 +130,7 @@ async fn handle_client(mut stream: TcpStream) {
         let query = request.path.strip_prefix("/files/").expect("trimmed");
         let file_path = format!("{}/{}", dir, query);
 
-        if let HttpMethod::Post = request.method {
+        if let http::HttpMethod::Post = request.method {
             match File::create(file_path) {
                 Ok(mut file) => {
                     // Write data to the file
@@ -113,7 +178,7 @@ async fn handle_client(mut stream: TcpStream) {
 }
 
 fn parse_http(data: &str) -> HttpRequest {
-    let mut request = HttpRequest{path: String::new(), method: HttpMethod::Unimplemented, headers: HashMap::new(), body: String::new()};
+    let mut request = HttpRequest{path: String::new(), params: HashMap::new(),method: HttpMethod::Unimplemented, headers: HashMap::new(), body: String::new()};
     let mut lines = data.lines();
 
     let request_line = lines.next();
@@ -159,15 +224,7 @@ fn parse_http(data: &str) -> HttpRequest {
     return request
 }
 
-struct HttpRequest {
-    method: HttpMethod,
-    path: String,
-    headers: HashMap<String, String>,
-    body: String,
-}
 
-enum HttpMethod {
-    Unimplemented,
-    Get,
-    Post,
+fn handle_request(r: HttpRequest, config: &Config) -> HttpResponse {
+    HttpResponse{code: HttpStatusCode::Success, body: Bytes::new(), headers: vec![]}
 }

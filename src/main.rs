@@ -145,7 +145,7 @@ fn headers(request: HttpRequest, _: &Config) -> HttpResponse {
     if let Some(header) = header {
         return HttpResponse{code: HttpStatusCode::Success, body: header.clone().into(), headers: vec![Header{name: "Content-Length".into(), value: format!("{}", header.len()).into()}]}
     }
-    return HttpResponse{code: HttpStatusCode::BadRequest, body: Bytes::new(), headers: vec![]}
+    return HttpResponse{code: HttpStatusCode::NotFound, body: Bytes::new(), headers: vec![]}
 }
 
 fn handler(request: HttpRequest, config: &Config) -> HttpResponse {

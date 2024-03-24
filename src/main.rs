@@ -98,7 +98,7 @@ fn post_file(request: HttpRequest, config: &Config) -> HttpResponse {
                 },
             }
 
-            return HttpResponse{code: HttpStatusCode::Created, body: Bytes::new(), headers: vec![Header{name: "Content-Type".into(), value: "application/octet-stream".into()}]}
+            return HttpResponse{code: HttpStatusCode::Created, body: Bytes::new(), headers: vec![]}
         }
 
         Err(e) => {
@@ -126,7 +126,7 @@ fn get_file(request: HttpRequest, config: &Config) -> HttpResponse {
                 },
             }
             let content_length = contents.len();
-            return HttpResponse{code: HttpStatusCode::Success, body: contents.into(), headers: vec![Header{name: "Content-Length".into(), value: format!("{}", content_length).into()}]  }
+            return HttpResponse{code: HttpStatusCode::Success, body: contents.into(), headers: vec![Header{name: "Content-Length".into(), value: format!("{}", content_length).into()}, Header{name: "Content-Type".into(), value: "application/octet-stream".into()}]  }
         }
         Err(_) => {return HttpResponse{code: HttpStatusCode::NotFound, body: Bytes::new(), headers: vec![]}},
     }
@@ -135,7 +135,7 @@ fn get_file(request: HttpRequest, config: &Config) -> HttpResponse {
 fn echo(request: HttpRequest, _: &Config) -> HttpResponse {
     let body = request.path.strip_prefix("/echo/").expect("trimmed").to_string();
     let content_length = body.len();
-    return HttpResponse{code: HttpStatusCode::Success, body: body.into(), headers: vec![Header{name: "Content-Length".into(), value: format!("{}", content_length).into()}]}
+    return HttpResponse{code: HttpStatusCode::Success, body: body.into(), headers: vec![Header{name: "Content-Length".into(), value: format!("{}", content_length).into()}, Header{name: "Content-Type".into(), value: "text/plain".into()}]}
 }
 
 fn headers(request: HttpRequest, _: &Config) -> HttpResponse {
@@ -143,7 +143,7 @@ fn headers(request: HttpRequest, _: &Config) -> HttpResponse {
     let header = request.headers.get(&query.to_string().to_lowercase());
 
     if let Some(header) = header {
-        return HttpResponse{code: HttpStatusCode::Success, body: header.clone().into(), headers: vec![Header{name: "Content-Length".into(), value: format!("{}", header.len()).into()}]}
+        return HttpResponse{code: HttpStatusCode::Success, body: header.clone().into(), headers: vec![Header{name: "Content-Length".into(), value: format!("{}", header.len()).into()}, Header{name: "Content-Type".into(), value: "text/plain".into()}]}
     }
     return HttpResponse{code: HttpStatusCode::NotFound, body: Bytes::new(), headers: vec![]}
 }

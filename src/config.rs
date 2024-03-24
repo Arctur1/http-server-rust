@@ -17,8 +17,8 @@ impl Config {
                 if let Some(dir) = args.get(i + 1) {
                     directory = Some(dir.clone());
                 }
+            }
         }
-    }
         Self {directory: directory}
     }
 }

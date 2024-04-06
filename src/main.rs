@@ -101,8 +101,8 @@ fn file(request: HttpRequest, config: &Config) -> HttpResponse {
 fn post_file(request: HttpRequest, config: &Config) -> HttpResponse {
     let dir = config.directory.as_ref().expect("passed dir");
 
-    let query = request.path.strip_prefix("/files/").expect("trimmed");
-    let file_path = format!("{}/{}", dir, query);
+    let file = request.params.get("file").expect("file parameter");
+    let file_path = format!("{}/{}", dir, file);
 
     match File::create(file_path) {
         Ok(mut file) => {
@@ -148,8 +148,8 @@ fn post_file(request: HttpRequest, config: &Config) -> HttpResponse {
 fn get_file(request: HttpRequest, config: &Config) -> HttpResponse {
     let dir = config.directory.as_ref().expect("passed dir").clone();
 
-    let query = request.path.strip_prefix("/files/").expect("trimmed");
-    let file_path = format!("{}/{}", dir, query);
+    let file = request.params.get("file").expect("file parameter");
+    let file_path = format!("{}/{}", dir, file);
     match File::open(&file_path) {
         Ok(mut file) => {
             let mut contents = String::new();
@@ -218,8 +218,8 @@ fn echo(request: HttpRequest, _: &Config) -> HttpResponse {
 }
 
 fn headers(request: HttpRequest, _: &Config) -> HttpResponse {
-    let query = request.path.strip_prefix("/").expect("trimmed");
-    let header = request.headers.get(&query.to_string().to_lowercase());
+    let target_header = request.params.get("header").expect("header parameter");
+    let header = request.headers.get(&target_header.to_string().to_lowercase());
 
     if let Some(header) = header {
         return HttpResponse {

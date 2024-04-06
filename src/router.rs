@@ -1,20 +1,18 @@
-
-
 use crate::config::Config;
-pub use crate::matcher;
 pub use crate::http;
+pub use crate::matcher;
 
 type HandlerFn = fn(r: http::HttpRequest, config: &Config) -> http::HttpResponse;
 type Route = (matcher::Path, HandlerFn);
 
 #[derive(Clone)]
 pub struct Router {
-    handlers: Vec<Route>
+    handlers: Vec<Route>,
 }
 
 impl Router {
     pub fn new() -> Self {
-        Self {handlers: vec![]}
+        Self { handlers: vec![] }
     }
 
     pub fn add(mut self, path: &str, handler: HandlerFn) -> Self {
@@ -28,9 +26,8 @@ impl Router {
             if let Some(matches) = route.0.match_path(path.to_string()) {
                 return Some((matches, route.1));
             }
-        };
+        }
 
         None
     }
 }
-
